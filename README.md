@@ -53,5 +53,4 @@ This project is licensed under the MIT License.
 
 # TODO
 
--   use es6 imports and async/await
--   add GIF convertion
+-   Fix Error processing video: ffmpeg exited with code 1: Option hwaccel (use HW accelerated decoding) cannot be applied to output  

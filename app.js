@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import ProgressBar from "progress";
+import os from "os";
 
 const readdir = promisify(fs.readdir);
 const stat = promisify(fs.stat);
@@ -38,8 +39,7 @@ class VideoUtility {
         return new Promise((resolve, reject) => {
             let command = ffmpeg(inputPath)
                 .videoFilters(`setpts=${1 / speed}*PTS`)
-                .outputOptions("-preset ultrafast")
-                .outputOptions("-hwaccel auto");
+                .outputOptions("-preset ultrafast");
 
             if (cachedAudio) {
                 command = command.input(cachedAudio).audioFilters(`asetpts=${speed}*PTS`);
@@ -129,17 +129,28 @@ class VideoUtility {
         );
 
         const validVideos = videoFiles.filter(Boolean);
+        const numWorkers = Math.min(os.cpus().length, validVideos.length);
+        const chunkSize = Math.ceil(validVideos.length / numWorkers);
 
-        return Promise.all(validVideos.map((video) => this.processVideo(video, options)));
+        const chunks = Array.from({ length: numWorkers }, (_, i) =>
+            validVideos.slice(i * chunkSize, (i + 1) * chunkSize)
+        );
+
+        const workers = chunks.map((chunk) => this.createWorker(chunk, options));
+
+        return Promise.all(workers.map((worker) => worker.run()));
     }
 
-    async processWithWorker(inputPath, options) {
-        return new Promise((resolve, reject) => {
-            const worker = new Worker("./videoProcessingWorker.js");
-            worker.on("message", resolve);
-            worker.on("error", reject);
-            worker.postMessage({ inputPath, options });
-        });
+    createWorker(videos, options) {
+        return {
+            run: () =>
+                new Promise((resolve, reject) => {
+                    const worker = new Worker("./videoProcessingWorker.js");
+                    worker.on("message", resolve);
+                    worker.on("error", reject);
+                    worker.postMessage({ videos, options });
+                }),
+        };
     }
 
     async mergeVideos(inputPaths, outputPath) {
@@ -223,6 +234,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             describe: "Convert to GIF",
             type: "boolean",
             default: false,
+        })
+        .option("trim", {
+            alias: "t",
+            describe: "Trim video (format: start,duration)",
+            type: "string",
+        })
+        .option("subtitles", {
+            alias: "sub",
+            describe: "Add subtitles",
+            type: "string",
+        })
+        .option("merge", {
+            alias: "mg",
+            describe: "Merge processed videos",
+            type: "boolean",
+            default: false,
         }).argv;
 
     const options = {
@@ -231,23 +258,43 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         effect: argv.effect,
         outputFormat: argv.format,
         outputPath: argv.output,
+        subtitles: argv.subtitles,
     };
 
+    if (argv.trim) {
+        const [start, duration] = argv.trim.split(",");
+        options.trim = { start: parseFloat(start), duration: parseFloat(duration) };
+    }
+
     const processVideos = async () => {
-        if (argv.batch) {
-            const results = await videoUtility.batchProcess(argv.input, options);
-            console.log(`Batch processing complete. Processed ${results.length} videos.`);
-        } else {
-            const output = await videoUtility.processVideo(argv.input, options);
-            console.log(`Video processed successfully: ${output}`);
+        try {
+            let processedVideos;
+            if (argv.batch) {
+                processedVideos = await videoUtility.batchProcess(argv.input, options);
+                console.log(`Batch processing complete. Processed ${processedVideos.length} videos.`);
+            } else {
+                const output = await videoUtility.processVideo(argv.input, options);
+                processedVideos = [output];
+                console.log(`Video processed successfully: ${output}`);
+            }
 
             if (argv.gif) {
-                const gifOutput = output.replace(/\.[^/.]+$/, ".gif");
-                await videoUtility.convertToGif(output, gifOutput);
-                console.log(`GIF created: ${gifOutput}`);
+                for (const video of processedVideos) {
+                    const gifOutput = video.replace(/\.[^/.]+$/, ".gif");
+                    await videoUtility.convertToGif(video, gifOutput);
+                    console.log(`GIF created: ${gifOutput}`);
+                }
             }
+
+            if (argv.merge && processedVideos.length > 1) {
+                const mergedOutput = path.join(path.dirname(processedVideos[0]), "merged_output.mp4");
+                await videoUtility.mergeVideos(processedVideos, mergedOutput);
+                console.log(`Merged video created: ${mergedOutput}`);
+            }
+        } catch (error) {
+            console.error(`Error processing video: ${error.message}`);
         }
     };
 
-    processVideos().catch((error) => console.error(`Error processing video: ${error.message}`));
+    processVideos();
 }
