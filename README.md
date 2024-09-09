@@ -51,6 +51,3 @@ We welcome contributions! Please see our contributing guidelines for more inform
 
 This project is licensed under the MIT License.
 
-# TODO
-
--   Fix Error processing video: ffmpeg exited with code 1: Option hwaccel (use HW accelerated decoding) cannot be applied to output  
