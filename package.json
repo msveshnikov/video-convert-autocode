@@ -2,10 +2,13 @@
   "name": "video-utility",
   "version": "1.0.0",
   "description": "A powerful video processing tool built with Node.js and FFmpeg",
-  "main": "index.js",
+  "main": "app.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "test": "jest"
+    "start": "node app.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "keywords": [
     "video",
@@ -20,14 +23,30 @@
     "fluent-ffmpeg": "^2.1.2",
     "node-stream-zip": "^1.15.0",
     "progress": "^2.0.3",
-    "yargs": "^17.7.1"
+    "yargs": "^17.7.1",
+    "gif-encoder": "^0.7.2"
   },
   "devDependencies": {
     "jest": "^29.5.0",
     "eslint": "^8.38.0",
-    "prettier": "^2.8.7"
+    "prettier": "^2.8.7",
+    "@babel/preset-env": "^7.16.11",
+    "@babel/plugin-transform-modules-commonjs": "^7.16.8"
   },
   "engines": {
     "node": ">=14.0.0"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.js$": "babel-jest"
+    }
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ],
+    "plugins": [
+      "@babel/plugin-transform-modules-commonjs"
+    ]
   }
 }

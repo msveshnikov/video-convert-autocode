@@ -54,3 +54,4 @@ This project is licensed under the MIT License.
 # TODO
 
 -   use es6 imports and async/await
+-   add GIF convertion
